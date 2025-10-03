@@ -11,3 +11,5 @@ Use original factors to synthesize factors selected by the genetic algorithm, fo
 The main program is used for new backtesting and can also be utilized for forecasting in live trading.
 
 First, data must be scraped. Obtain two pickle files: one for factor data over three years and another for closing prices.
+
+toolkit是核心，提供了库，英文文件是一些小垃圾
