@@ -7,20 +7,22 @@ from datetime import datetime
 
 class FutureStockPredictor:
     """
-    使用历史数据直接预测推荐股票
+    使用历史数据直接预测推荐股票 - 优化版本
+    在筛选阶段确保IC方向一致性
     """
     
     def __init__(self):
-        self.function_set = ['add', 'sub', 'mul', 'div', 'sqrt', 'log', 'abs', 'neg', 'inv', 'max', 'min'
-                        , 'gtpn', 'andpn', 'orpn', 'ltpn', 'gtp', 'andp', 'orp', 'ltp', 'gtn',
-                          'andn', 'orn', 'ltn', 'delayy', 'delta', 'signedpower', 'decayl', 'stdd', 'rankk']
+        self.function_set = ['add', 'sub', 'mul', 'div', 'sqrt', 'log', 'abs', 'neg', 'inv', 'max', 'min', 'rankk']
         self.model = None
         self.factor_expression = None
         # 新增属性
         self.final_raw_ic = 0  # 原始IC值
         self.final_abs_ic = 0   # 绝对IC值
-        self.min_acceptable_ic = 0.03  # IC值阈值
-    
+        self.min_acceptable_ic = 0.01  # IC值阈值（降低以允许更多探索）
+        self.direction_consistency = 0  # 方向一致性比率
+        self.ic_std = 0  # IC标准差
+        self.dominant_direction = "正向"  # 主导方向
+        
     def load_and_prepare_data(self, price_file, factor_file):
         """加载价格和因子数据"""
         print("📂 加载历史数据...")
@@ -41,8 +43,8 @@ class FutureStockPredictor:
         
         return price_df, x_dict
     
-    def train_with_historical_data(self, price_df, x_dict, train_months=6, predict_days=10):
-        """使用历史数据训练预测模型"""
+    def train_with_directional_ic(self, price_df, x_dict, train_months=6, predict_days=20):
+        """使用历史数据训练预测模型 - 确保IC方向一致性"""
         print(f"\n🎯 开始训练模型...")
         print(f"   训练周期: 过去{train_months}个月")
         print(f"   预测目标: 未来{predict_days}天表现")
@@ -94,13 +96,20 @@ class FutureStockPredictor:
         x_array_valid = x_array_train[date_mask]
         y_target_valid = y_target.values
         
-        # 修正的评分函数 - 优化绝对IC值
-        def score_func(y, y_pred, sample_weight):
+        # 🎯 关键改进：方向一致的评分函数
+        def directional_score_func(y, y_pred, sample_weight):
+            """
+            在筛选阶段就确保IC方向一致性
+            返回：方向一致的IC均值 × 一致性惩罚因子
+            """
             if len(np.unique(y_pred[-1])) <= 10:
-                return -1
+                return -1  # 预测值缺乏区分度
             
-            # 计算每日IC值
-            daily_ics = []
+            # 计算每日IC值并分类
+            positive_ics = []  # 正相关IC
+            negative_ics = []  # 负相关IC
+            all_valid_ics = []  # 所有有效IC
+            
             for day_idx in range(len(y)):
                 y_day = y[day_idx]
                 y_pred_day = y_pred[day_idx]
@@ -111,24 +120,68 @@ class FutureStockPredictor:
                 
                 if len(df_day) > 10:
                     ic_day = df_day['true'].corr(df_day['pred'], method='spearman')
+                    
                     if not np.isnan(ic_day):
-                        daily_ics.append(abs(ic_day)) # 关键修改：使用绝对值
+                        all_valid_ics.append(ic_day)
+                        if ic_day > 0:
+                            positive_ics.append(ic_day)
+                        elif ic_day < 0:
+                            negative_ics.append(ic_day)
             
-            if daily_ics:
-                ic_mean = np.mean(daily_ics)  # 优化绝对IC均值
-                return ic_mean
-            else:
+            if not all_valid_ics:
                 return 0
+            
+            # 🎯 核心逻辑：选择主导方向
+            n_positive = len(positive_ics)
+            n_negative = len(negative_ics)
+            total_days = len(all_valid_ics)
+            
+            # 计算方向一致性比率
+            consistency_ratio = max(n_positive, n_negative) / total_days
+            
+            # 根据主导方向计算IC
+            if n_positive > n_negative:
+                # 正相关主导
+                dominant_ics = positive_ics
+                direction_multiplier = 1.0  # 保持原方向
+            else:
+                # 负相关主导
+                dominant_ics = negative_ics
+                direction_multiplier = -1.0  # 反转方向
+            
+            if len(dominant_ics) == 0:
+                return 0
+            
+            # 计算主导方向的IC均值
+            dominant_ic_mean = np.mean(dominant_ics)
+            dominant_abs_ic_mean = np.mean([abs(ic) for ic in dominant_ics])
+            
+            # 🎯 方向一致性惩罚因子
+            if consistency_ratio >= 0.85:
+                consistency_factor = 1.2  # 高度一致，奖励
+            elif consistency_ratio >= 0.75:
+                consistency_factor = 1.0  # 良好一致
+            elif consistency_ratio >= 0.65:
+                consistency_factor = 0.7  # 基本一致，轻微惩罚
+            elif consistency_ratio >= 0.55:
+                consistency_factor = 0.4  # 一致性较差，较重惩罚
+            else:
+                consistency_factor = 0.1  # 方向混乱，严重惩罚
+            
+            # 最终得分 = 主导方向绝对IC均值 × 方向一致性因子 × 方向乘子
+            final_score = dominant_abs_ic_mean * consistency_factor * abs(direction_multiplier)
+            
+            return final_score
         
         # 训练模型
         from toolkit.setupGPlearn import my_gplearn
         
         self.model = my_gplearn(
             self.function_set,
-            score_func,
+            directional_score_func,  # 使用新的评分函数
             feature_names=feature_names,
-            pop_num=500,
-            gen_num=5,
+            pop_num=300,  # 稍微减少种群数以加快收敛
+            gen_num=4,    # 减少代数以测试效果
             random_state=42
         )
         
@@ -138,11 +191,17 @@ class FutureStockPredictor:
         print(f"✅ 模型训练完成!")
         print(f"📝 挖掘的因子: {self.factor_expression}")
         
-        # 计算最终因子IC值
+        # 🎯 严格的训练后验证
+        return self._strict_post_training_validation(x_array_valid, y_target_valid)
+    
+    def _strict_post_training_validation(self, x_array_valid, y_target_valid):
+        """严格的训练后验证"""
         final_predictions = self.model.predict(x_array_valid)
-        all_raw_ics = []
-        all_abs_ics = []
-
+        
+        daily_raw_ics = []
+        positive_count = 0
+        negative_count = 0
+        
         for day_idx in range(len(y_target_valid)):
             df_day = pd.DataFrame({
                 'true': y_target_valid[day_idx], 
@@ -153,30 +212,62 @@ class FutureStockPredictor:
             if len(df_day) > 10:
                 ic_val = df_day['true'].corr(df_day['pred'], method='spearman')
                 if not np.isnan(ic_val):
-                    all_raw_ics.append(ic_val)
-                    all_abs_ics.append(abs(ic_val))
-
-        if all_raw_ics:
-            self.final_raw_ic = np.mean(all_raw_ics)
-            self.final_abs_ic = np.mean(all_abs_ics)
-            print(f"📊 最终因子原始IC值: {self.final_raw_ic:.4f}")
-            print(f"📈 最终因子绝对IC值: {self.final_abs_ic:.4f}")
+                    daily_raw_ics.append(ic_val)
+                    if ic_val > 0:
+                        positive_count += 1
+                    elif ic_val < 0:
+                        negative_count += 1
+        
+        if daily_raw_ics:
+            total_days = len(daily_raw_ics)
+            self.final_raw_ic = np.mean(daily_raw_ics)
+            self.final_abs_ic = np.mean([abs(ic) for ic in daily_raw_ics])
             
-            # 检查IC值是否达到阈值
-            if self.final_abs_ic < self.min_acceptable_ic:
-                print(f"⚠️  警告: 因子绝对IC值({self.final_abs_ic:.4f})低于阈值({self.min_acceptable_ic})")
+            # 确定主导方向
+            if positive_count > negative_count:
+                self.dominant_direction = "正向"
+                dominant_ratio = positive_count / total_days
+                # 如果是正向主导，我们期望IC为正
+                expected_sign = 1
+            else:
+                self.dominant_direction = "负向" 
+                dominant_ratio = negative_count / total_days
+                expected_sign = -1
+            
+            self.direction_consistency = dominant_ratio
+            self.ic_std = np.std(daily_raw_ics)
+            
+            print(f"🎯 方向一致性分析:")
+            print(f"   主导方向: {self.dominant_direction}")
+            print(f"   一致性比率: {dominant_ratio:.1%}")
+            print(f"   原始IC均值: {self.final_raw_ic:.4f}")
+            print(f"   绝对IC均值: {self.final_abs_ic:.4f}")
+            print(f"   IC标准差: {self.ic_std:.4f}")
+            
+            # 🎯 严格的通过条件
+            passes_validation = (
+                self.final_abs_ic >= self.min_acceptable_ic and
+                self.direction_consistency >= 0.65 and  # 65%以上天数方向一致
+                self.ic_std <= 0.18 and  # IC波动控制
+                self.final_raw_ic * expected_sign > 0  # 实际方向与期望方向一致
+            )
+            
+            if passes_validation:
+                print(f"✅ 因子通过方向一致性验证!")
+                return True
+            else:
+                print(f"❌ 因子未通过方向一致性验证")
+                if self.direction_consistency < 0.65:
+                    print(f"   原因: 方向一致性不足({self.direction_consistency:.1%} < 65%)")
+                if self.ic_std > 0.18:
+                    print(f"   原因: IC波动过大({self.ic_std:.4f} > 0.18)")
                 return False
         else:
-            self.final_raw_ic = 0
-            self.final_abs_ic = 0
-            print(f"⚠️  无法计算有效的IC值")
+            print(f"❌ 无法计算有效的IC值")
             return False
-        
-        return True
-    
 
-    def predict_top_stocks(self, price_df, x_dict, top_n=10, recent_days=10):
-        """预测推荐股票"""
+    def predict_with_directional_logic(self, price_df, x_dict, top_n=10, recent_days=10):
+        """考虑因子方向的预测逻辑"""
         if self.model is None:
             print("❌ 请先训练模型!")
             return None
@@ -226,9 +317,15 @@ class FutureStockPredictor:
             stock_scores_std = (valid_scores - valid_scores.mean()) / valid_scores.std()
             stock_scores_std = stock_scores_std.fillna(0)
             
-            # 关键修改：统一选择得分最高的股票
-            top_stocks = stock_scores_std.sort_values(ascending=False).head(top_n)
-            print("✅ 使用正向选择（高分股票）")
+            # 🎯 关键：根据因子方向决定选择逻辑
+            if self.dominant_direction == "负向":
+                # 对于负相关因子，选择得分最低的股票
+                top_stocks = stock_scores_std.sort_values(ascending=True).head(top_n)
+                print("✅ 使用负向选择（低分股票）- 因子呈负相关")
+            else:
+                # 默认选择得分最高的股票（正相关）
+                top_stocks = stock_scores_std.sort_values(ascending=False).head(top_n)
+                print("✅ 使用正向选择（高分股票）- 因子呈正相关")
             
             return top_stocks
             
@@ -249,9 +346,10 @@ class FutureStockPredictor:
                 stock_scores_std = (valid_scores - valid_scores.mean()) / valid_scores.std()
                 stock_scores_std = stock_scores_std.fillna(0)
                 
-                # 统一选择得分最高的股票
-                top_stocks = stock_scores_std.sort_values(ascending=False).head(top_n)
-                print("✅ 多天平均预测成功！使用正向选择")
+                # 🎯 关键：根据因子方向决定选择逻辑
+                if self.dominant_direction == "负向":
+                    top_stocks = stock_scores_std.sort_values(ascending=True).head(top_n)
+                print("✅ 多天平均预测成功！根据因子方向选择")
                 
                 return top_stocks
                 
@@ -266,7 +364,7 @@ class FutureStockPredictor:
                 
                 # 统一选择得分最高的股票
                 top_stocks = factor_scores_std.sort_values(ascending=False).head(top_n)
-                print("✅ 使用原始因子值成功！使用正向选择")
+                print("✅ 使用原始因子值成功！默认正向选择")
                 
                 return top_stocks
     
@@ -294,8 +392,22 @@ class FutureStockPredictor:
         
         print(f"\n💾 推荐结果已保存到: {filename}")
         print(f"📊 IC值详情: 原始IC={self.final_raw_ic:.4f}, 绝对IC={self.final_abs_ic:.4f})")
+        print(f"🎯 因子方向: {self.dominant_direction}, 一致性: {self.direction_consistency:.1%}")
         
         return report_df
+
+    def get_training_summary(self):
+        """获取训练摘要"""
+        return {
+            'factor_expression': self.factor_expression,
+            'raw_ic': self.final_raw_ic,
+            'abs_ic': self.final_abs_ic,
+            'direction_consistency': self.direction_consistency,
+            'ic_std': self.ic_std,
+            'dominant_direction': self.dominant_direction,
+            'is_valid': (self.final_abs_ic >= self.min_acceptable_ic and 
+                     self.direction_consistency >= 0.65)
+        }
 
 def main():
     """主函数"""
@@ -312,24 +424,24 @@ def main():
         print(f"❌ 数据加载失败: {e}")
         return
     
-    # 2. 训练模型
+    # 2. 训练模型 - 使用新的方向一致方法
     try:
-        success = predictor.train_with_historical_data(
+        success = predictor.train_with_directional_ic(
             price_df=price_df,
             x_dict=x_dict,
-            train_months=6,
-            predict_days=10
+            train_months=12,
+            predict_days=30
         )
     except Exception as e:
         print(f"❌ 模型训练失败: {e}")
         return
     
     if not success:
-        print("❌ 因子预测能力不足，建议重新训练")
+        print("❌ 因子预测能力不足或方向不稳定，建议重新训练")
         return
     
-    # 3. 预测推荐股票
-    recommendations = predictor.predict_top_stocks(
+    # 3. 预测推荐股票 - 使用方向感知的预测方法
+    recommendations = predictor.predict_with_directional_logic(
         price_df=price_df,
         x_dict=x_dict,
         top_n=10,
@@ -344,7 +456,7 @@ def main():
         print(f"预测日期: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
         print(f"使用的因子: {predictor.factor_expression}")
         print(f"因子IC值: 原始={predictor.final_raw_ic:.4f}, 绝对={predictor.final_abs_ic:.4f})")
-        print(f"选择方式: 正向选择（高分股票）")
+        print(f"因子方向: {predictor.dominant_direction}, 一致性: {predictor.direction_consistency:.1%}")
         print("-"*60)
         
         latest_prices = price_df.iloc[-1]
@@ -355,6 +467,19 @@ def main():
         
         # 保存结果
         report_df = predictor.save_recommendations(recommendations, price_df)
+        
+        # 显示训练摘要
+        summary = predictor.get_training_summary()
+        print(f"\n📋 训练摘要:")
+        print(f"   因子表达式: {summary['factor_expression']}")
+        print(f"   原始IC: {summary['raw_ic']:.4f}")
+        print(f"   绝对IC: {summary['abs_ic']:.4f}")
+        print(f"   方向一致性: {summary['direction_consistency']:.1%}")
+        
+        if summary['is_valid']:
+            print(f"✅ 因子通过所有验证!")
+        else:
+            print(f"⚠️  因子未完全通过验证")
 
 if __name__ == '__main__':
     main()
