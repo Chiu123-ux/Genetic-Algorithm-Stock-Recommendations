@@ -1,13 +1,13 @@
 本质是遗传算法应用时序函数，后续改进方向是加入时间切片函数
 用原始因子合成遗传算法选择的因子，然后进行回测，月度周度换手均可
 
-原始量价数据可由tushare获得，太大了我就不上传了
+主程序在新回测，也可以进行预测，在新实盘
+首先要爬数据，用因子三年获取和收盘价获取到两个pkl文件
 
-主程序在新回测，pkl原始文件需要自己导入并且匹配格式
+The essence is the application of a genetic algorithm to time-series functions. Future improvements involve incorporating time-slicing functions.
 
-The essence is the application of a genetic algorithm to time-series functions. Future improvements involve incorporating time-slicing functions.  
-The original factors are synthesized using the genetic algorithm-selected factors, followed by backtesting. Monthly or weekly turnover rates can both be applied.  
+Use original factors to synthesize factors selected by the genetic algorithm, followed by backtesting. Monthly or weekly turnover can be applied.
 
-The original price-volume data can be obtained from Tushare. The file is too large, so I will not upload it.  
+The main program is used for new backtesting and can also be utilized for forecasting in live trading.
 
-The main program is in the new backtesting file. The original PKL files need to be imported independently, and the format must be matched.
+First, data must be scraped. Obtain two pickle files: one for factor data over three years and another for closing prices.
