@@ -7,7 +7,7 @@ import time
 from datetime import datetime, timedelta
 
 # 设置 Tushare Token
-ts.set_token('bacbf02a717535992d2e41973171eaddef76803fea0fbd9ae50acf3c')
+ts.set_token('')
 pro = ts.pro_api()
 
 # ========== 配置参数 ==========
@@ -89,4 +89,5 @@ if __name__ == '__main__':
     # 保存为 .pkl 文件
     with open('factor_3years.pkl', 'wb') as f:
         dill.dump(factor_data, f)
+
     print("✅ 因子数据已保存为 factor_3years.pkl")
