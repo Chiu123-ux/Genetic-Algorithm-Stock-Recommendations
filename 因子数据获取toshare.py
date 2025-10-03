@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor
 
 # 初始化Tushare
-ts.set_token('bacbf02a717535992d2e41973171eaddef76803fea0fbd9ae50acf3c')
+ts.set_token('')
 pro = ts.pro_api()
 
 # ========== 配置参数 ==========
@@ -154,5 +154,6 @@ if __name__ == '__main__':
             'factor_names': list(FACTOR_FIELDS.keys())
         }, f)
     print(f"因子数据维度: {factor_array.shape}")
+
 
 print("\n====== 全部数据已保存 ======")
