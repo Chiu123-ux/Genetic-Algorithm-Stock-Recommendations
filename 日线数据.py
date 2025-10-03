@@ -5,7 +5,7 @@ import time
 from datetime import datetime, timedelta
 
 # 设置 token
-ts.set_token('bacbf02a717535992d2e41973171eaddef76803fea0fbd9ae50acf3c')
+ts.set_token('')
 pro = ts.pro_api()
 
 # 获取A股代码列表
@@ -46,4 +46,5 @@ def fetch_all_a_stock_data(stock_codes, start_date, end_date, save_path='data/20
         time.sleep(0.1)
 
 # 执行
+
 fetch_all_a_stock_data(a_stock_codes, start_date, end_date)
