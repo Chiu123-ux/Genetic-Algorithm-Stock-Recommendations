@@ -3,7 +3,7 @@ import pickle
 import pandas as pd
 '''
 # 初始化Tushare
-ts.set_token('bacbf02a717535992d2e41973171eaddef76803fea0fbd9ae50acf3c')
+ts.set_token('')
 pro = ts.pro_api()
 print(pro.query('daily_basic', fields='', src=''))
 # 查询daily_basic接口所有可用字段
@@ -41,4 +41,5 @@ with open(
         "C:/Users/bu'zhi'h'h'h/Desktop/pycharm/遗传算法/gplearnplus/use-gplearn-to-generate-CTA-factor/stock_prices.pkl",
         'rb') as f:
     data = pickle.load(f)
+
 print(data)
