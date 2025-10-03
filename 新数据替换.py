@@ -4,7 +4,7 @@ import numpy as np
 from datetime import datetime, timedelta
 
 # 设置 Tushare Token（已填写你的token）
-ts.set_token('bacbf02a717535992d2e41973171eaddef76803fea0fbd9ae50acf3c')
+ts.set_token('')
 pro = ts.pro_api()
 
 
@@ -69,4 +69,5 @@ all_data = all_data.dropna(axis=1, how='all')
 # ========== 步骤4：保存数据 ==========
 all_data.to_pickle('stock_data_3years.pkl')  # 修改文件名以反映过滤ST
 print(f"数据已保存，维度：{all_data.shape}")
+
 
