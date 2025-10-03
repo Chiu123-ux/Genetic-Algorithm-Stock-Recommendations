@@ -3,7 +3,7 @@ import pandas as pd
 from tqdm import tqdm  # 可选：显示进度条
 
 # 设置 Tushare Token
-ts.set_token('bacbf02a717535992d2e41973171eaddef76803fea0fbd9ae50acf3c')
+ts.set_token('')
 pro = ts.pro_api()
 
 # ========== 步骤1：获取全A股列表并剔除ST ==========
@@ -68,4 +68,5 @@ pivot_data = pivot_data.dropna(axis=1, how='all')
 
 # ========== 步骤5：保存数据 ==========
 pivot_data.to_pickle('stock_close_3years.pkl')
+
 print(f"数据已保存，维度：{pivot_data.shape}")
