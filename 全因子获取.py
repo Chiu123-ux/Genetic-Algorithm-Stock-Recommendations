@@ -8,7 +8,7 @@ import time
 from datetime import datetime, timedelta
 
 # 设置 Tushare Token
-ts.set_token('bacbf02a717535992d2e41973171eaddef76803fea0fbd9ae50acf3c')
+ts.set_token('')
 pro = ts.pro_api()
 
 # ========== 配置参数 ==========
@@ -304,4 +304,5 @@ if __name__ == '__main__':
         print(f"   列数: {len(close_df.columns)}")
         print(f"   前5只股票: {list(close_df.columns[:5])}")
         print(f"\n   前3行数据示例:")
+
         print(close_df.head(3).iloc[:, :5])  # 显示前3行前5列
