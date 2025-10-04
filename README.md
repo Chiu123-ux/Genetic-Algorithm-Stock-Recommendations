@@ -15,3 +15,27 @@ First, data must be scraped. Obtain two pickle files: one for factor data over t
 toolkit是核心，提供了库，英文文件是一些小垃圾
 
 现加入全因子获取
+基础因子 (12个):
+
+close, open, high, low - 价格
+
+pct_chg - 涨跌幅
+
+vol, amount - 成交量能
+
+pe, pb - 估值
+
+turnover_rate - 换手率
+
+total_mv, circ_mv - 市值
+
+衍生技术指标 (8+个):
+
+MA5, MA10, MA20 - 移动平均线
+
+RETURN_5, RETURN_10, RETURN_20 - 收益率动量
+
+VOLATILITY_20 - 波动率
+
+VOLUME_MA5, VOLUME_MA20 - 成交量均线
+
