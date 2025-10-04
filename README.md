@@ -13,3 +13,5 @@ The main program is used for new backtesting and can also be utilized for foreca
 First, data must be scraped. Obtain two pickle files: one for factor data over three years and another for closing prices.
 
 toolkit是核心，提供了库，英文文件是一些小垃圾
+
+现加入全因子获取
