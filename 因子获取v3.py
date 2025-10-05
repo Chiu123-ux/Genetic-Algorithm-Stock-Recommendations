@@ -8,7 +8,7 @@ import time
 from datetime import datetime, timedelta
 
 # 设置 Tushare Token
-ts.set_token('bacbf02a717535992d2e41973171eaddef76803fea0fbd9ae50acf3c')
+ts.set_token('你的token')
 pro = ts.pro_api()
 
 # ========== 配置参数 ==========
@@ -351,4 +351,5 @@ if __name__ == '__main__':
     factor_dataframes = calculate_volume_amplification_indicators(factor_dataframes)
     
     # 数据清洗和保存
+
     clean_and_save_data(factor_dataframes, successful_stocks)
