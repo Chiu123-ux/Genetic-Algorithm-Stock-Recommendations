@@ -8,7 +8,7 @@ import time
 from datetime import datetime, timedelta
 
 # 设置 Tushare Token
-ts.set_token('你的token')
+ts.set_token('bacbf02a717535992d2e41973171eaddef76803fea0fbd9ae50acf3c')
 pro = ts.pro_api()
 
 # ========== 配置参数 ==========
@@ -130,7 +130,71 @@ def fetch_single_stock_data(ts_code, start_date, end_date):
     
     return None
 
+def reorganize_data_by_factor(all_stock_data):
+    """优化版本的数据组织 - 避免碎片化警告"""
+    print("重新组织数据格式...")
+    
+    # 收集所有日期
+    all_dates = set()
+    for stock_df in all_stock_data.values():
+        if stock_df is not None:
+            all_dates.update(stock_df.index)
+    
+    if not all_dates:
+        return {}
+    
+    all_dates = sorted(all_dates)
+    
+    # 为每个因子创建空的DataFrame
+    base_factors = ['close', 'open', 'high', 'low', 'pct_chg', 'vol', 'amount', 
+                   'turnover_rate', 'total_mv', 'circ_mv']
+    
+    factor_dataframes = {factor: pd.DataFrame(index=all_dates) for factor in base_factors}
+    
+    # 使用更高效的方法填充数据
+    for factor in tqdm(base_factors, desc="组织因子数据"):
+        # 收集该因子所有股票的数据
+        factor_data_list = []
+        stock_codes = []
+        
+        for ts_code, stock_df in all_stock_data.items():
+            if stock_df is not None:
+                factor_col = f"{factor}_{ts_code}"
+                if factor_col in stock_df.columns:
+                    factor_data_list.append(stock_df[factor_col])
+                    stock_codes.append(ts_code)
+        
+        # 一次性合并所有股票数据
+        if factor_data_list:
+            # 使用concat避免碎片化
+            combined_data = pd.concat(factor_data_list, axis=1, keys=stock_codes)
+            # 重新索引以对齐日期
+            combined_data = combined_data.reindex(all_dates)
+            factor_dataframes[factor] = combined_data
+    
+    return factor_dataframes
 
+def calculate_technical_indicators(factor_dataframes):
+    """计算技术指标 - 修复pct_change警告"""
+    print("计算技术指标...")
+    
+    if 'close' not in factor_dataframes:
+        return factor_dataframes
+    
+    # 计算移动平均线
+    for window in [5, 10, 20]:
+        ma_name = f'MA{window}'
+        factor_dataframes[ma_name] = factor_dataframes['close'].rolling(window=window).mean()
+    
+    # 修复pct_change警告
+    close_data = factor_dataframes['close'].fillna(method='ffill').fillna(method='bfill')
+    
+    # 使用fill_method=None避免警告
+    factor_dataframes['RETURN_5'] = close_data.pct_change(5, fill_method=None)
+    factor_dataframes['RETURN_10'] = close_data.pct_change(10, fill_method=None)
+    factor_dataframes['RETURN_20'] = close_data.pct_change(20, fill_method=None)
+    
+    return factor_dataframes
 
 def calculate_volume_amplification_indicators(factor_dataframes):
     """计算成交量放大指标 - 修复pct_change警告"""
@@ -287,6 +351,4 @@ if __name__ == '__main__':
     factor_dataframes = calculate_volume_amplification_indicators(factor_dataframes)
     
     # 数据清洗和保存
-
     clean_and_save_data(factor_dataframes, successful_stocks)
-

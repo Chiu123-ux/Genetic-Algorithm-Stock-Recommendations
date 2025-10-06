@@ -86,7 +86,182 @@ class SmartVolumeEnhancedPredictor:
             print(f"❌ 数据加载失败: {e}")
             raise
     
-   
+    def robust_quick_train(self, price_df, x_dict, train_months=6, predict_days=10):
+        """修复版的快速训练 - 解决数据维度问题"""
+        print(f"\n🎯 开始修复版快速训练...")
+        print(f"   训练周期: 过去{train_months}个月")
+        print(f"   预测目标: 未来{predict_days}天表现")
+        
+        # 确定训练窗口
+        end_date = price_df.index[-1]
+        start_date = end_date - pd.DateOffset(months=train_months)
+        
+        # 准备训练数据 - 确保数据对齐
+        price_train = price_df.loc[start_date:end_date]
+        
+        print(f"   价格数据形状: {price_train.shape}")
+        
+        # 计算未来收益率 - 修复版本
+        print("📊 计算未来收益率目标...")
+        future_returns = []
+        valid_dates = []
+        
+        # 确保我们有足够的数据点
+        if len(price_train) <= predict_days:
+            print(f"❌ 训练数据不足: 需要至少{predict_days+1}天数据，当前只有{len(price_train)}天")
+            return False
+        
+        for i in range(len(price_train) - predict_days):
+            current_date = price_train.index[i]
+            future_date = price_train.index[i + predict_days]
+            
+            daily_returns = {}
+            valid_stock_count = 0
+            
+            for stock in price_train.columns:
+                current_price = price_train.iloc[i][stock]
+                future_price = price_train.iloc[i + predict_days][stock]
+                
+                # 严格的数据验证
+                if (not np.isnan(current_price) and not np.isnan(future_price) and 
+                    current_price > 0 and future_price > 0):
+                    future_ret = (future_price - current_price) / current_price
+                    daily_returns[stock] = future_ret
+                    valid_stock_count += 1
+            
+            # 只有当有足够多有效股票时才保留该日期
+            if valid_stock_count > len(price_train.columns) * 0.8:  # 至少80%的股票有效
+                future_returns.append(daily_returns)
+                valid_dates.append(current_date)
+        
+        if not future_returns:
+            print("❌ 没有足够有效的未来收益率数据")
+            return False
+        
+        # 创建目标变量 - 确保维度一致
+        y_target = pd.DataFrame(future_returns, index=valid_dates)
+        y_target = y_target.reindex(columns=price_train.columns)  # 确保列顺序一致
+        y_target = y_target.fillna(0)  # 填充缺失值
+        
+        print(f"✅ 收益率目标计算完成，有效天数: {len(y_target)}")
+        print(f"   目标数据形状: {y_target.shape}")
+        
+        # 准备特征数据 - 选择最重要的因子
+        print("🔧 准备特征数据...")
+        
+        # 优先选择成交量相关因子
+        volume_related_factors = [f for f in x_dict.keys() if 'VOLUME' in f]
+        # 选择其他重要因子，但控制总数
+        other_important_factors = ['close', 'pct_chg', 'turnover_rate', 'total_mv']
+        other_factors = [f for f in other_important_factors if f in x_dict]
+        
+        # 组合因子，总数控制在12个以内
+        selected_factors = volume_related_factors[:8] + other_factors[:4]
+        selected_factors = selected_factors[:12]  # 确保不超过12个
+        
+        print(f"   使用因子: {len(selected_factors)}个")
+        
+        x_dict_train = {}
+        for key in selected_factors:
+            feat_df = x_dict[key].loc[start_date:end_date].reindex_like(price_train)
+            # 严格的数据清洗
+            feat_df = feat_df.ffill().bfill().fillna(0)
+            feat_df = feat_df.replace([np.inf, -np.inf], 0)
+            x_dict_train[key] = feat_df
+        
+        # 🎯 关键修复：确保特征数据和目标数据的日期对齐
+        # 只保留两个数据集中都存在的日期
+        common_dates = y_target.index.intersection(price_train.index)
+        
+        if len(common_dates) == 0:
+            print("❌ 没有共同的日期可用于训练")
+            return False
+        
+        print(f"   共同日期数量: {len(common_dates)}")
+        
+        # 构建训练数据 - 确保维度一致
+        x_array_list = []
+        for key in selected_factors:
+            # 只取共同日期的数据
+            feat_data = x_dict_train[key].loc[common_dates]
+            x_array_list.append(feat_data.values)
+        
+        # 检查所有特征数据的形状是否一致
+        shapes = [arr.shape for arr in x_array_list]
+        if len(set(shapes)) != 1:
+            print(f"❌ 特征数据形状不一致: {shapes}")
+            return False
+        
+        x_array_train = np.array(x_array_list)
+        x_array_train = np.transpose(x_array_train, axes=(1, 2, 0))  # (时间, 股票, 因子)
+        
+        # 目标数据也只取共同日期
+        y_target_common = y_target.loc[common_dates]
+        y_target_valid = y_target_common.values
+        
+        print(f"✅ 训练数据准备完成")
+        print(f"   特征数据形状: {x_array_train.shape}")
+        print(f"   目标数据形状: {y_target_valid.shape}")
+        
+        # 简化的评分函数 - 更稳定
+        def stable_score_func(y, y_pred, sample_weight):
+            try:
+                if len(np.unique(y_pred[-1])) <= 5:
+                    return -1
+                
+                all_ics = []
+                for day_idx in range(min(len(y), len(y_pred))):  # 确保不越界
+                    if day_idx >= len(y_pred):
+                        break
+                        
+                    df_day = pd.DataFrame({
+                        'true': y[day_idx], 
+                        'pred': y_pred[day_idx]
+                    })
+                    # 严格的数据清洗
+                    df_day = df_day.replace([np.inf, -np.inf], np.nan)
+                    df_day = df_day.dropna()
+                    
+                    if len(df_day) > 10:
+                        ic_day = df_day['true'].corr(df_day['pred'], method='spearman')
+                        if not np.isnan(ic_day):
+                            all_ics.append(abs(ic_day))
+                
+                if not all_ics:
+                    return 0
+                
+                return np.mean(all_ics)
+            except Exception as e:
+                return 0
+        
+        # 训练模型 - 使用更保守的参数
+        print("🧠 开始遗传算法训练...")
+        
+        try:
+            from toolkit.setupGPlearn import my_gplearn
+            
+            self.model = my_gplearn(
+                self.function_set,
+                stable_score_func,
+                feature_names=selected_factors,
+                pop_num=300,    # 更小的种群
+                gen_num=3,      # 更少的代数
+                random_state=42,
+                verbose=1
+            )
+            
+            self.model.fit(x_array_train, y_target_valid)
+            self.factor_expression = str(self.model)
+            
+            print(f"✅ 训练成功完成!")
+            print(f"📝 挖掘的因子: {self.factor_expression}")
+            
+            return True
+            
+        except Exception as e:
+            print(f"❌ 训练过程中出现错误: {e}")
+            return False
+    
     def smart_volume_enhancement(self, stock_scores, recent_features):
         """智能成交量增强 - 不过滤，只加权"""
         print("🎯 智能成交量增强...")
@@ -350,6 +525,4 @@ def main():
         predictor.save_recommendations(recommendations, price_df)
 
 if __name__ == '__main__':
-
     main()
-
