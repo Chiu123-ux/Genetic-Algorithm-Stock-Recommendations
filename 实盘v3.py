@@ -203,64 +203,7 @@ class SmartVolumeEnhancedPredictor:
         print(f"   特征数据形状: {x_array_train.shape}")
         print(f"   目标数据形状: {y_target_valid.shape}")
         
-        # 简化的评分函数 - 更稳定
-        def stable_score_func(y, y_pred, sample_weight):
-            try:
-                if len(np.unique(y_pred[-1])) <= 5:
-                    return -1
-                
-                all_ics = []
-                for day_idx in range(min(len(y), len(y_pred))):  # 确保不越界
-                    if day_idx >= len(y_pred):
-                        break
-                        
-                    df_day = pd.DataFrame({
-                        'true': y[day_idx], 
-                        'pred': y_pred[day_idx]
-                    })
-                    # 严格的数据清洗
-                    df_day = df_day.replace([np.inf, -np.inf], np.nan)
-                    df_day = df_day.dropna()
-                    
-                    if len(df_day) > 10:
-                        ic_day = df_day['true'].corr(df_day['pred'], method='spearman')
-                        if not np.isnan(ic_day):
-                            all_ics.append(abs(ic_day))
-                
-                if not all_ics:
-                    return 0
-                
-                return np.mean(all_ics)
-            except Exception as e:
-                return 0
-        
-        # 训练模型 - 使用更保守的参数
-        print("🧠 开始遗传算法训练...")
-        
-        try:
-            from toolkit.setupGPlearn import my_gplearn
-            
-            self.model = my_gplearn(
-                self.function_set,
-                stable_score_func,
-                feature_names=selected_factors,
-                pop_num=300,    # 更小的种群
-                gen_num=3,      # 更少的代数
-                random_state=42,
-                verbose=1
-            )
-            
-            self.model.fit(x_array_train, y_target_valid)
-            self.factor_expression = str(self.model)
-            
-            print(f"✅ 训练成功完成!")
-            print(f"📝 挖掘的因子: {self.factor_expression}")
-            
-            return True
-            
-        except Exception as e:
-            print(f"❌ 训练过程中出现错误: {e}")
-            return False
+       
     
     def smart_volume_enhancement(self, stock_scores, recent_features):
         """智能成交量增强 - 不过滤，只加权"""
@@ -525,4 +468,5 @@ def main():
         predictor.save_recommendations(recommendations, price_df)
 
 if __name__ == '__main__':
+
     main()
