@@ -1,0 +1,148 @@
+﻿{
+    "tushare": {
+        "token_env_var": "TUSHARE_TOKEN",
+        "default_token": "bacbf02a717535992d2e41973171eaddef76803fea0fbd9ae50acf3c",
+        "request_pause_seconds": 0.1
+    },
+    "paths": {
+        "data_directory": ".",
+        "output_directory": "."
+    },
+    "data_fetch": {
+        "close_price": {
+            "history_years": 1,
+            "batch_size": 50,
+            "max_workers": 5,
+            "min_list_years": 3,
+            "max_stocks": 1200,
+            "output_filename": "stock_close_1year.pkl"
+        }
+    },
+    "factor_fetch": {
+        "live": {
+            "years": 1,
+            "max_retries": 3,
+            "batch_size": 50,
+            "max_stocks": 1200,
+            "max_workers": 5,
+            "rate_limit_pause_seconds": 10,
+            "output_prefix": "stock_factors_live"
+        },
+        "backtest": {
+            "years": 1,
+            "max_retries": 3,
+            "batch_size": 50,
+            "max_stocks": 1200,
+            "max_workers": 5,
+            "rate_limit_pause_seconds": 10,
+            "output_prefix": "stock_factors_backtest",
+            "chunk_size": 50
+        }
+    },
+    "smart_volume": {
+        "train_months": 6,
+        "predict_days": 20,
+        "top_n": 10,
+        "ga_pop_num": 200,
+        "ga_gen_num": 3,
+        "rebalance_days": 20,
+        "initial_capital": 1000000,
+        "transaction_cost": 0.001,
+        "recommendation_count": 10,
+        "report_directory": "./reports",
+        "price_file": "./data/stock_factors_live_latest_close.pkl",
+        "factor_file": "./data/stock_factors_live_latest_factors.pkl"
+    },
+    "ga_pipeline": {
+        "num_factors": 35,
+        "train_months": 24,
+        "predict_days": 5,
+        "ga_pop_num": 1000,
+        "ga_gen_num": 6,
+        "output_directory": "./factors",
+        "price_file": "./data/stock_factors_predict_latest_close_zz500.pkl",
+        "factor_file": "./data/stock_factors_predict_latest_factors_zz500.pkl",
+        "max_factors": 180,
+        "diversity_penalty_alpha": 0.2,
+        "seed_expression_file": "./factors/seed_expressions_template.txt",
+        "max_seed_expressions": 12,
+        "inject_seed_programs": true,
+        "seed_program_mutation_copies": 2,
+        "seed_program_mutation_replace_rate": 0.15,
+        "ga_workers": 30,
+        "ga_use_gpu": false,
+        "ga_cuda_device": 0,
+        "fitness_metric": "icir",
+        "ga_top_n": 25,
+        "ga_candidate_pool_size": 50,
+        "ga_inverse_vol_weight_power": 0,
+        "ga_downside_penalty": 0,
+        "ga_drawdown_penalty": 0,
+        "ga_volatility_penalty": 0,
+        "ga_random_seed_base": 42,
+        "ga_iteration_multiplier": 2,        
+        "ga_factors_per_iteration": 5,
+        "ga_resume_cache_hours": 1.0,
+        "ga_volatility_window_min": 5,
+        "ga_volatility_window_max": 20,
+        "function_library_profile": "minimal",
+        "function_set": null,
+        "enable_time_functions": false,
+        "enable_wq_time_functions": false,
+        "enable_logic_functions": false,
+        "enable_trig_functions": false
+    },
+    "gru_pipeline": {
+        "sequence_length": 40,
+        "predict_days": 5,
+        "hidden_units": 128,
+        "batch_size": 64,
+        "epochs": 80,
+        "validation_ratio": 0.05,
+        "train_ratio": 0.95,
+        "factor_expression_file": "./factors/generated_factors_latest.txt",
+        "price_file": "./data/stock_factors_predict_latest_close_zz500.pkl",
+        "factor_file": "./data/stock_factors_predict_latest_factors_zz500.pkl",
+        "backtest_price_file": "./data/stock_factors_predict_latest_close_zz500.pkl",
+        "backtest_factor_file": "./data/stock_factors_predict_latest_factors_zz500.pkl",
+        "model_output_dir": "./models",
+        "log_output_dir": "./outputs/recommendations",
+        "recommendation_output_dir": "./outputs/recommendations",
+        "top_n": 15,
+        "initial_capital": 1000000,
+        "transaction_cost": 0.0015,
+        "return_calc_mode": "simple",
+        "train_window_months": 18,
+        "retrain_every_n_rebalances": 1,
+        "initial_train_months": 18,
+        "rebalance_months": 0,
+        "rebalance_frequency": 10,
+        "run_ga_every_n_months": 12,
+        "backtest_ga_pop_num": 1000,
+        "backtest_ga_gen_num": 6,
+        "min_train_samples": 378,
+        "candidate_pool_size": 30,
+        "volatility_lookback_days": 20,
+        "inverse_vol_weight_power": 0,
+        "max_single_position_weight": 0.15,
+        "enable_market_trend_filter": false,
+        "trend_filter_window": 60,
+        "trend_exposure_floor": 0.5,
+        "enable_drawdown_scaling": false,
+        "drawdown_scale_trigger": 0.12,
+        "drawdown_exposure_floor": 0.35,
+        "num_layers": 2,
+        "dropout_rate": 0.2,
+        "use_bidirectional": true,
+        "cuda_device": 0,
+        "normalize_factors": true,
+        "normalize_target": true,
+        "uncertainty_samples": 10,
+        "fit_window_months": 24
+    }
+}
+
+
+
+
+

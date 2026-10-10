@@ -1,0 +1,21 @@
+# GA warm-start seed expressions template
+# 支持两种格式：
+# 1) 仅表达式：add(pct_chg,turnover_rate)
+# 2) 带前缀名：Factor01: add(pct_chg,turnover_rate)
+# 行内 # 后内容会被当作注释忽略。
+# 注意：变量名必须存在于你的 factor_file 中。
+# 当前模板优先使用 build_pickles_from_datahub.py 会稳定保留的标准化字段：
+# close,open,high,low,pct_chg,turnover_rate,total_mv,circ_mv,
+# vol,amount,free_turn,turn,S_MFD_INFLOW_LARGE_ORDER,S_MFD_INFLOW,
+# volatility,s_val_pb_new,roe_ttm
+
+Factor01: add(pct_chg,turn)  # 动量 + 换手
+Factor02: sub(pct_chg,free_turn)
+Factor03: div(sub(close,open),add(abs(open),1.0))
+Factor04: div(sub(high,low),add(abs(close),1.0))
+Factor05: mul(pct_chg,inv(add(abs(volatility),1.0)))
+Factor06: div(turn,add(abs(volatility),1.0))
+Factor07: div(amount,add(abs(total_mv),1.0))
+Factor08: div(S_MFD_INFLOW_LARGE_ORDER,add(abs(amount),1.0))
+Factor09: div(amount,add(abs(vol),1.0))
+Factor10: sub(log(add(abs(circ_mv),1.0)),log(add(abs(total_mv),1.0)))

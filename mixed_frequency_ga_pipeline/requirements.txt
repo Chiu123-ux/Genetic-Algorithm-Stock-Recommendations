@@ -1,0 +1,16 @@
+numpy
+pandas
+scipy
+scikit-learn
+joblib
+torch
+tqdm
+dill
+pyarrow
+openpyxl
+matplotlib
+seaborn
+statsmodels
+plotly
+wordcloud
+pillow
